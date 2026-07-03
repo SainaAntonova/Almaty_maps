@@ -21,6 +21,10 @@ body{display:flex;flex-direction:column}
 .m-tab.active{background:#f1f5f9;border-color:#f1f5f9;color:#0f172a}
 #pm-display{font-size:18px;font-weight:700;color:#f1f5f9;white-space:nowrap;align-self:center}
 #pm-label{font-size:9px;color:#64748b;align-self:center}
+#lang-switch{display:flex;gap:4px;align-self:center;margin-left:auto}
+.lang-btn{font-size:9px;font-weight:700;padding:4px 8px;border-radius:6px;border:1.5px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;transition:all .15s}
+.lang-btn:hover{background:#1e293b;border-color:#475569;color:#f1f5f9}
+.lang-btn.active{background:#f1f5f9;border-color:#f1f5f9;color:#0f172a}
 #legend{background:#fff;position:absolute;bottom:20px;right:10px;z-index:1000;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.12);padding:10px 12px;min-width:170px}
 .leg-title{font-size:10px;font-weight:700;color:#0f172a;letter-spacing:.05em;text-transform:uppercase;margin-bottom:7px}
 .leg-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:11px;color:#334155}
@@ -41,8 +45,8 @@ body{display:flex;flex-direction:column}
 <body>
 <div id="ui">
   <div id="ui-title">
-    <p>Загрязнение воздуха PM2.5</p>
-    <p>у школ и детских садов Алматы</p>
+    <p id="title-l1">Загрязнение воздуха PM2.5</p>
+    <p id="title-l2">у школ и детских садов Алматы</p>
   </div>
   <div id="month-tabs">
     <button class="m-tab active" data-m="2025-10">Окт<br>2025</button>
@@ -55,24 +59,29 @@ body{display:flex;flex-direction:column}
   </div>
   <div id="pm-display">—</div>
   <div id="pm-label">Среднее PM2.5<br>за месяц</div>
+  <div id="lang-switch">
+    <button class="lang-btn active" data-lang="ru">RU</button>
+    <button class="lang-btn" data-lang="kk">KZ</button>
+    <button class="lang-btn" data-lang="en">EN</button>
+  </div>
 </div>
 <div id="map"></div>
 <div id="legend">
-  <div class="leg-title">Качество воздуха · AQI PM2.5</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#00e400"></div>Хорошее &lt;9 мкг/м³</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#ffff00;border:1px solid #e0e000"></div>Умеренное 9–35</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#ff7e00"></div>Вредно (чувствит.) 35–55</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#ff0000"></div>Вредно 55–125</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#8f3f97"></div>Очень вредно &gt;125</div>
+  <div class="leg-title" id="leg-title-aqi">Качество воздуха · AQI PM2.5</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#00e400"></div><span id="leg-row-0">Хорошее &lt;9 мкг/м³</span></div>
+  <div class="leg-row"><div class="leg-dot" style="background:#ffff00;border:1px solid #e0e000"></div><span id="leg-row-1">Умеренное 9–35</span></div>
+  <div class="leg-row"><div class="leg-dot" style="background:#ff7e00"></div><span id="leg-row-2">Вредно (чувствит.) 35–55</span></div>
+  <div class="leg-row"><div class="leg-dot" style="background:#ff0000"></div><span id="leg-row-3">Вредно 55–125</span></div>
+  <div class="leg-row"><div class="leg-dot" style="background:#8f3f97"></div><span id="leg-row-4">Очень вредно &gt;125</span></div>
   <div class="leg-sep"></div>
-  <div class="leg-title">Тип учреждения</div>
+  <div class="leg-title" id="leg-title-type">Тип учреждения</div>
   <div class="leg-shape-row">
-    <div class="leg-circle"></div><span>Школа</span>
+    <div class="leg-circle"></div><span id="leg-school">Школа</span>
     <div style="width:14px"></div>
-    <div class="leg-sq"></div><span>Детский сад</span>
+    <div class="leg-sq"></div><span id="leg-kg">Детский сад</span>
   </div>
   <div class="leg-sep"></div>
-  <div style="font-size:9px;color:#94a3b8">Almaty Air Initiative <br>1008 детских садов · 352 школ <br>Окт 2025 — Апр 2026</div>
+  <div style="font-size:9px;color:#94a3b8" id="leg-footer">Almaty Air Initiative <br>1008 детских садов · 352 школ <br>Окт 2025 — Апр 2026</div>
 </div>
 
 <script>
@@ -101,13 +110,98 @@ MAP_DATA.forEach(function(d){
 // Rendered layers cache
 var layers = {};
 var currentMonth = null;
+var currentLang = 'ru';
+
+var MONTH_ABBR = {
+  ru: ['Окт','Ноя','Дек','Янв','Фев','Мар','Апр'],
+  kk: ['Қаз','Қар','Жел','Қаң','Ақп','Нау','Сәу'],
+  en: ['Oct','Nov','Dec','Jan','Feb','Mar','Apr']
+};
+
+var I18N = {
+  ru: {
+    title1: 'Загрязнение воздуха PM2.5',
+    title2: 'у школ и детских садов Алматы',
+    pmLabel: 'Среднее PM2.5<br>за месяц',
+    legendTitleAqi: 'Качество воздуха · AQI PM2.5',
+    legendRows: ['Хорошее &lt;9 мкг/м³','Умеренное 9–35','Вредно (чувствит.) 35–55','Вредно 55–125','Очень вредно &gt;125'],
+    legendTitleType: 'Тип учреждения',
+    school: 'Школа',
+    kindergarten: 'Детский сад',
+    footer: 'Almaty Air Initiative <br>1008 детских садов · 352 школ <br>Окт 2025 — Апр 2026',
+    unit: 'мкг/м³',
+    aqi: ['Хорошее','Умеренное','Вредно для чувствит.','Вредно','Очень вредно']
+  },
+  kk: {
+    title1: 'PM2.5 ауа ластануы',
+    title2: 'Алматы мектептері мен балабақшаларында',
+    pmLabel: 'Айлық орташа<br>PM2.5',
+    legendTitleAqi: 'Ауа сапасы · AQI PM2.5',
+    legendRows: ['Жақсы &lt;9 мкг/м³','Орташа 9–35','Сезімталдарға зиянды 35–55','Зиянды 55–125','Өте зиянды &gt;125'],
+    legendTitleType: 'Мекеме түрі',
+    school: 'Мектеп',
+    kindergarten: 'Балабақша',
+    footer: 'Almaty Air Initiative <br>1008 балабақша · 352 мектеп <br>Қазан 2025 — Сәуір 2026',
+    unit: 'мкг/м³',
+    aqi: ['Жақсы','Орташа','Сезімталдарға зиянды','Зиянды','Өте зиянды']
+  },
+  en: {
+    title1: 'PM2.5 Air Pollution',
+    title2: 'Near Schools & Kindergartens in Almaty',
+    pmLabel: 'Monthly average<br>PM2.5',
+    legendTitleAqi: 'Air Quality · AQI PM2.5',
+    legendRows: ['Good &lt;9 µg/m³','Moderate 9–35','Unhealthy (sensitive) 35–55','Unhealthy 55–125','Very unhealthy &gt;125'],
+    legendTitleType: 'Facility Type',
+    school: 'School',
+    kindergarten: 'Kindergarten',
+    footer: 'Almaty Air Initiative <br>1008 kindergartens · 352 schools <br>Oct 2025 – Apr 2026',
+    unit: 'µg/m³',
+    aqi: ['Good','Moderate','Unhealthy (sensitive)','Unhealthy','Very unhealthy']
+  }
+};
+
+function applyLanguage(lang){
+  currentLang = lang;
+  var t = I18N[lang];
+  document.documentElement.lang = lang;
+  document.getElementById('title-l1').textContent = t.title1;
+  document.getElementById('title-l2').textContent = t.title2;
+  document.getElementById('pm-label').innerHTML = t.pmLabel;
+  document.getElementById('leg-title-aqi').textContent = t.legendTitleAqi;
+  t.legendRows.forEach(function(txt, i){
+    document.getElementById('leg-row-'+i).innerHTML = txt;
+  });
+  document.getElementById('leg-title-type').textContent = t.legendTitleType;
+  document.getElementById('leg-school').textContent = t.school;
+  document.getElementById('leg-kg').textContent = t.kindergarten;
+  document.getElementById('leg-footer').innerHTML = t.footer;
+
+  document.querySelectorAll('.m-tab').forEach(function(btn, i){
+    var year = btn.getAttribute('data-m').slice(0,4);
+    btn.innerHTML = MONTH_ABBR[lang][i]+'<br>'+year;
+  });
+
+  document.querySelectorAll('.lang-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+  });
+
+  pmEl.textContent = MONTH_PM[currentMonth]+' '+t.unit;
+
+  // Popups already rendered carry stale-language text; clear cache and re-render
+  Object.keys(layers).forEach(function(k){
+    if(map.hasLayer(layers[k])) map.removeLayer(layers[k]);
+  });
+  layers = {};
+  renderMonth(currentMonth);
+}
 
 function popupHtml(d){
-  var aqi = d.p<=9?'Хорошее':d.p<=35?'Умеренное':d.p<=55?'Вредно для чувствит.':d.p<=125?'Вредно':'Очень вредно';
+  var t = I18N[currentLang];
+  var aqi = d.p<=9?t.aqi[0]:d.p<=35?t.aqi[1]:d.p<=55?t.aqi[2]:d.p<=125?t.aqi[3]:t.aqi[4];
   var clr = d.p<=9?'#16a34a':d.p<=35?'#ca8a04':d.p<=55?'#ea580c':d.p<=125?'#dc2626':'#7c3aed';
   return '<div class="pop-name">'+d.n+'</div>'+
-    '<div class="pop-row">'+(d.t==='s'?'Школа':'Детский сад')+'</div>'+
-    '<div class="pop-pm" style="color:'+clr+'">'+d.p+' мкг/м³</div>'+
+    '<div class="pop-row">'+(d.t==='s'?t.school:t.kindergarten)+'</div>'+
+    '<div class="pop-pm" style="color:'+clr+'">'+d.p+' '+t.unit+'</div>'+
     '<div class="pop-row" style="margin-top:2px">'+aqi+'</div>';
 }
 
@@ -168,15 +262,23 @@ document.querySelectorAll('.m-tab').forEach(function(btn){
     var m = btn.getAttribute('data-m');
     renderMonth(m);
     var pm = MONTH_PM[m];
-    pmEl.textContent = pm+' мкг/м³';
+    pmEl.textContent = pm+' '+I18N[currentLang].unit;
     pmEl.style.color = PM_COLOR[m]||'#f1f5f9';
+  });
+});
+
+// Language switcher
+document.querySelectorAll('.lang-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    applyLanguage(btn.getAttribute('data-lang'));
   });
 });
 
 // Init with Oct
 renderMonth('2025-10');
-pmEl.textContent = MONTH_PM['2025-10']+' мкг/м³';
+pmEl.textContent = MONTH_PM['2025-10']+' '+I18N[currentLang].unit;
 pmEl.style.color = PM_COLOR['2025-10'];
+applyLanguage('ru');
 </script>
 </body>
 </html>
